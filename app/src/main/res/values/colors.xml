@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brave Brand Colors -->
+    <color name="brave_orange">#FB542B</color>
+    <color name="brave_orange_dark">#E64A19</color>
+    <color name="brave_purple">#7C3AED</color>
+    <color name="brave_dark_bg">#1E1E2E</color>
+    <color name="brave_dark_surface">#2A2A3C</color>
+    <color name="brave_dark_card">#313145</color>
+    <color name="brave_light_bg">#FAFAFA</color>
+    <color name="brave_light_surface">#FFFFFF</color>
+    <color name="brave_text_primary">#FFFFFF</color>
+    <color name="brave_text_secondary">#B0B0C0</color>
+    <color name="brave_success">#4CAF50</color>
+    <color name="brave_warning">#FF9800</color>
+    <color name="brave_error">#F44336</color>
+    <color name="shield_active">#FB542B</color>
+    <color name="shield_inactive">#757575</color>
+</resources>
