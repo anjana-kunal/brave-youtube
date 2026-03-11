@@ -69,6 +69,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val blockAds = prefs.blockAds.stateIn(viewModelScope, SharingStarted.Lazily, true)
     val blockShorts = prefs.blockShorts.stateIn(viewModelScope, SharingStarted.Lazily, false)
     val backgroundPlayback = prefs.backgroundPlayback.stateIn(viewModelScope, SharingStarted.Lazily, true)
+    val autoplayEnabled = prefs.autoplayEnabled.stateIn(viewModelScope, SharingStarted.Lazily, true)
 
     // User profile state (Google Sign-In)
     private val _userName = MutableStateFlow("")
@@ -703,4 +704,5 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleBlockAds(enabled: Boolean) = viewModelScope.launch { prefs.setBlockAds(enabled) }
     fun toggleBlockShorts(enabled: Boolean) = viewModelScope.launch { prefs.setBlockShorts(enabled) }
     fun toggleBgPlayback(enabled: Boolean) = viewModelScope.launch { prefs.setBackgroundPlayback(enabled) }
+    fun toggleAutoplay(enabled: Boolean) = viewModelScope.launch { prefs.setAutoplayEnabled(enabled) }
 }

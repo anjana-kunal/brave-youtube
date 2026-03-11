@@ -24,12 +24,14 @@ class PreferencesManager(private val context: Context) {
     val blockTrackers: Flow<Boolean> = context.dataStore.data.map { it[BLOCK_TRACKERS] ?: true }
     val blockShorts: Flow<Boolean> = context.dataStore.data.map { it[BLOCK_SHORTS] ?: false }
     val backgroundPlayback: Flow<Boolean> = context.dataStore.data.map { it[BG_PLAYBACK] ?: true }
+    val autoplayEnabled: Flow<Boolean> = context.dataStore.data.map { it[AUTOPLAY] ?: true }
 
     suspend fun setShieldsEnabled(v: Boolean) { context.dataStore.edit { it[SHIELDS_ENABLED] = v } }
     suspend fun setBlockAds(v: Boolean) { context.dataStore.edit { it[BLOCK_ADS] = v } }
     suspend fun setBlockTrackers(v: Boolean) { context.dataStore.edit { it[BLOCK_TRACKERS] = v } }
     suspend fun setBlockShorts(v: Boolean) { context.dataStore.edit { it[BLOCK_SHORTS] = v } }
     suspend fun setBackgroundPlayback(v: Boolean) { context.dataStore.edit { it[BG_PLAYBACK] = v } }
+    suspend fun setAutoplayEnabled(v: Boolean) { context.dataStore.edit { it[AUTOPLAY] = v } }
 
     // User profile
     val userName: Flow<String> = context.dataStore.data.map { it[USER_NAME] ?: "" }
@@ -214,5 +216,6 @@ class PreferencesManager(private val context: Context) {
         private val SEARCH_HISTORY = stringPreferencesKey("search_history")
         private val LIKED_VIDEO_IDS = stringPreferencesKey("liked_video_ids")
         private val SUBSCRIBED_CHANNEL_IDS = stringPreferencesKey("subscribed_channel_ids")
+        private val AUTOPLAY = booleanPreferencesKey("autoplay")
     }
 }

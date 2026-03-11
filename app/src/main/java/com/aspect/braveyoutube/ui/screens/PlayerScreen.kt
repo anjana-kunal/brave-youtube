@@ -94,11 +94,25 @@ fun PlayerScreen(
     var isDisliked by remember { mutableStateOf(false) }
     var videoAspectRatio by remember { mutableFloatStateOf(16f / 9f) }
 
+    val autoplayEnabled by homeViewModel?.autoplayEnabled?.collectAsState() ?: remember { mutableStateOf(true) }
+    val currentRelatedVideos by rememberUpdatedState(relatedVideos)
+    val currentAutoplay by rememberUpdatedState(autoplayEnabled)
+    val currentOnVideoClick by rememberUpdatedState(onVideoClick)
+
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
                 if (videoSize.width > 0 && videoSize.height > 0) {
                     videoAspectRatio = videoSize.width.toFloat() / videoSize.height.toFloat()
+                }
+            }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) {
+                    if (currentAutoplay) {
+                        currentRelatedVideos.firstOrNull()?.let { nextVideo ->
+                            currentOnVideoClick(nextVideo.id)
+                        }
+                    }
                 }
             }
         }
@@ -278,7 +292,17 @@ fun PlayerScreen(
                 IconButton(onClick = { toggleFullscreen() }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
                 }
-                Row {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Autoplay toggle
+                    Text(
+                        text = if (autoplayEnabled) "Auto ON" else "Auto OFF",
+                        color = if (autoplayEnabled) YouTubeRed else Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clickable { homeViewModel?.toggleAutoplay(!autoplayEnabled) }
+                            .padding(horizontal = 8.dp)
+                    )
                     // Quality button
                     IconButton(onClick = { showQualitySheet = true }) {
                         Icon(Icons.Default.Tune, "Quality", tint = Color.White)
@@ -370,8 +394,20 @@ fun PlayerScreen(
                 Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(4.dp)
+                        .padding(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Autoplay toggle
+                    Text(
+                        text = if (autoplayEnabled) "Auto ON" else "Auto OFF",
+                        color = if (autoplayEnabled) YouTubeRed else Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clickable { homeViewModel?.toggleAutoplay(!autoplayEnabled) }
+                            .padding(end = 4.dp)
+                    )
+                    
                     if (qualities.size > 1) {
                         IconButton(onClick = { showQualitySheet = true }) {
                             Icon(
