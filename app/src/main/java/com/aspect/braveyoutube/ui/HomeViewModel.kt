@@ -17,6 +17,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -194,31 +195,36 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Load channel info for in-app subscribed channels via NewPipe */
     fun loadLocalSubscriptions(channelIds: Set<String> = _subscribedChannelIds.value) {
-        if (channelIds.isEmpty()) return
+        if (channelIds.isEmpty()) {
+            _localSubscriptions.value = emptyList()
+            return
+        }
         viewModelScope.launch {
             try {
-                val channels = mutableListOf<SubscriptionChannel>()
-                for (chId in channelIds.take(20)) {
-                    try {
-                        val url = if (chId.startsWith("UC")) {
-                            "https://www.youtube.com/channel/$chId"
-                        } else {
-                            "https://www.youtube.com/@$chId"
-                        }
-                        val info = newPipeRepo.getChannelInfoData(url)
-                        if (info != null) {
-                            channels.add(
+                val channelJobs = channelIds.take(20).map { chId ->
+                    async(Dispatchers.IO) {
+                        try {
+                            val url = if (chId.startsWith("UC")) {
+                                "https://www.youtube.com/channel/$chId"
+                            } else {
+                                "https://www.youtube.com/@$chId"
+                            }
+                            val info = newPipeRepo.getChannelInfoData(url)
+                            if (info != null) {
                                 SubscriptionChannel(
                                     channelId = chId,
-                                    title = info.name,
+                                    title = info.name.ifBlank { chId },
                                     thumbnailUrl = info.avatarUrl
                                 )
-                            )
+                            } else null
+                        } catch (e: Exception) {
+                            Log.e("HomeVM", "Channel info fetch failed for $chId: ${e.message}")
+                            null
                         }
-                    } catch (e: Exception) {
-                        Log.e("HomeVM", "Channel info fetch failed for $chId: ${e.message}")
                     }
                 }
+                
+                val channels = channelJobs.awaitAll().filterNotNull()
                 _localSubscriptions.value = channels
                 Log.d("HomeVM", "Loaded ${channels.size} local subscriptions")
             } catch (e: Exception) {
@@ -413,11 +419,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
                 // Add channels from watch history (recently watched channels)
                 for (item in history.take(15)) {
-                    if (item.channelId.isNotBlank()) {
-                        val url = if (item.channelId.startsWith("UC")) {
-                            "https://www.youtube.com/channel/${item.channelId}"
+                    val chId = item.channelId
+                    if (!chId.isNullOrBlank()) {
+                        val url = if (chId.startsWith("UC")) {
+                            "https://www.youtube.com/channel/$chId"
                         } else {
-                            "https://www.youtube.com/@${item.channelId}"
+                            "https://www.youtube.com/@$chId"
                         }
                         channelUrls.add(url)
                     }
@@ -463,7 +470,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 fun addUnique(videos: List<VideoItem>, maxCount: Int) {
                     var added = 0
                     for (v in videos) {
-                        if (v.id.isNotBlank() && seenIds.add(v.id)) {
+                        if (!v.id.isNullOrBlank() && seenIds.add(v.id)) {
                             finalFeed.add(v)
                             added++
                             if (added >= maxCount) break
@@ -486,20 +493,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     repeat(2) {
                         if (pIter.hasNext()) {
                             val v = pIter.next()
-                            if (v.id.isNotBlank() && seenIds.add(v.id)) finalFeed.add(v)
+                            if (!v.id.isNullOrBlank() && seenIds.add(v.id)) finalFeed.add(v)
                         }
                     }
                     // 2 from trending
                     repeat(2) {
                         if (tIter.hasNext()) {
                             val v = tIter.next()
-                            if (v.id.isNotBlank() && seenIds.add(v.id)) finalFeed.add(v)
+                            if (!v.id.isNullOrBlank() && seenIds.add(v.id)) finalFeed.add(v)
                         }
                     }
                     // 1 from topic search
                     if (sIter.hasNext()) {
                         val v = sIter.next()
-                        if (v.id.isNotBlank() && seenIds.add(v.id)) finalFeed.add(v)
+                        if (!v.id.isNullOrBlank() && seenIds.add(v.id)) finalFeed.add(v)
                     }
                     round++
                 }
@@ -507,7 +514,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 // If we still have few results, pad with remaining trending
                 while (tIter.hasNext() && finalFeed.size < 50) {
                     val v = tIter.next()
-                    if (v.id.isNotBlank() && seenIds.add(v.id)) finalFeed.add(v)
+                    if (!v.id.isNullOrBlank() && seenIds.add(v.id)) finalFeed.add(v)
                 }
 
                 _videos.value = finalFeed

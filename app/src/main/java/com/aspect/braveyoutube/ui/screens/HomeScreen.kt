@@ -23,6 +23,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.History
@@ -53,7 +56,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.Scope
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(androidx.compose.material.ExperimentalMaterialApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
@@ -136,6 +139,12 @@ fun HomeScreen(
             )
         }
     }
+
+    // Pull to refresh state
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isLoading,
+        onRefresh = { viewModel.refreshFeed() }
+    )
 
     fun launchSignIn() {
         signInLauncher.launch(signInClient.signInIntent)
@@ -338,31 +347,43 @@ fun HomeScreen(
                                 }
                             }
                             else -> {
-                                LazyColumn(
-                                    state = listState,
-                                    modifier = Modifier.fillMaxSize()
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .pullRefresh(pullRefreshState)
                                 ) {
-                                    // Removed pull-to-refresh hint text to look like native app
+                                    LazyColumn(
+                                        state = listState,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        items(videos, key = { it.id }) { video ->
+                                            VideoCard(
+                                                video = video,
+                                                onClick = { onVideoClick(video.id) }
+                                            )
+                                        }
 
-                                    items(videos, key = { it.id }) { video ->
-                                        VideoCard(
-                                            video = video,
-                                            onClick = { onVideoClick(video.id) }
-                                        )
-                                    }
-
-                                    if (isLoading && videos.isNotEmpty()) {
-                                        item {
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(16.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                LoadingSpinner(size = 28.dp, color = YouTubeRed)
+                                        if (isLoading && videos.isNotEmpty()) {
+                                            item {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(16.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    LoadingSpinner(size = 28.dp, color = YouTubeRed)
+                                                }
                                             }
                                         }
                                     }
+
+                                    PullRefreshIndicator(
+                                        refreshing = isLoading,
+                                        state = pullRefreshState,
+                                        modifier = Modifier.align(Alignment.TopCenter),
+                                        contentColor = YouTubeRed,
+                                        backgroundColor = MaterialTheme.colorScheme.surface
+                                    )
                                 }
                             }
                         }
