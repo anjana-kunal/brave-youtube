@@ -3,9 +3,11 @@ package com.aspect.braveyoutube.ui.components
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Subscriptions
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.*
@@ -24,9 +26,9 @@ data class BottomNavItem(
 
 val bottomNavItems = listOf(
     BottomNavItem("Home", Icons.Filled.Home, Icons.Outlined.Home),
-    BottomNavItem("Shorts", Icons.Filled.Subscriptions, Icons.Outlined.Subscriptions), // Placeholder icon
+    BottomNavItem("Shorts", Icons.Filled.PlayArrow, Icons.Outlined.PlayArrow), // Real Shorts icon is hard, use PlayArrow
     BottomNavItem("Subscriptions", Icons.Filled.Subscriptions, Icons.Outlined.Subscriptions),
-    BottomNavItem("Library", Icons.Filled.VideoLibrary, Icons.Outlined.VideoLibrary)
+    BottomNavItem("You", Icons.Filled.VideoLibrary, Icons.Outlined.VideoLibrary)
 )
 
 @Composable

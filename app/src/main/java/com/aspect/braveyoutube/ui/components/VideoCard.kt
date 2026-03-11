@@ -73,13 +73,13 @@ fun VideoCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 12.dp, end = 4.dp, top = 12.dp),
+                .padding(start = 12.dp, end = 12.dp, top = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Channel avatar
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(40.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
@@ -135,7 +135,9 @@ fun VideoCard(
             // Three-dot menu
             IconButton(
                 onClick = { /* TODO: video options menu */ },
-                modifier = Modifier.size(36.dp)
+                modifier = Modifier
+                    .size(24.dp)
+                    .offset(x = 8.dp) // push it slightly right to align with edge
             ) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
@@ -242,6 +244,82 @@ fun SmallVideoCard(
                 contentDescription = "More",
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * YouTube-style vertical video card for Shorts.
+ */
+@Composable
+fun ShortVideoCard(
+    video: VideoItem,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(4.dp)
+    ) {
+        // Vertical thumbnail
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(9f / 16f)
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            AsyncImage(
+                model = video.thumbnailUrl,
+                contentDescription = video.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            
+            // Duration badge
+            if (video.duration.isNotBlank()) {
+                Surface(
+                    color = Color.Black.copy(alpha = 0.85f),
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp)
+                ) {
+                    Text(
+                        text = video.duration,
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                    )
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Title
+        Text(
+            text = video.title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onBackground,
+            lineHeight = 18.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        if (video.viewCount.isNotBlank()) {
+            Text(
+                text = "${video.viewCount} views",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 4.dp)
             )
         }
     }

@@ -12,6 +12,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import android.content.res.Configuration
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,6 +30,7 @@ import androidx.compose.material.icons.outlined.WatchLater
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material3.*
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -163,22 +170,26 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // YouTube logo
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = null,
-                        tint = YouTubeRed,
-                        modifier = Modifier.size(30.dp)
+                        tint = Color.White,
+                        modifier = Modifier
+                            .background(YouTubeRed, RoundedCornerShape(8.dp))
+                            .padding(4.dp)
+                            .size(18.dp)
                     )
                     Text(
                         text = "YouTube",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
+                        letterSpacing = (-1).sp,
                         color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(start = 2.dp)
+                        modifier = Modifier.padding(start = 6.dp)
                     )
 
                     Spacer(modifier = Modifier.weight(1f))
@@ -189,7 +200,7 @@ fun HomeScreen(
                             imageVector = Icons.Default.Cast,
                             contentDescription = "Cast",
                             tint = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                     // Notifications
@@ -198,7 +209,7 @@ fun HomeScreen(
                             imageVector = Icons.Outlined.Notifications,
                             contentDescription = "Notifications",
                             tint = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                     // Search
@@ -207,57 +218,53 @@ fun HomeScreen(
                             imageVector = Icons.Default.Search,
                             contentDescription = "Search",
                             tint = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    // Shields
-                    IconButton(onClick = { showShieldsPanel = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Shield,
-                            contentDescription = "Shields",
-                            tint = if (shieldsEnabled) YouTubeRed else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                     // Profile avatar
-                    IconButton(onClick = {
-                        if (isSignedIn) {
-                            selectedTab = 3 // Go to Library
-                        } else {
-                            launchSignIn()
-                        }
-                    }) {
-                        if (userPhotoUrl.isNotBlank()) {
-                            AsyncImage(
-                                model = userPhotoUrl,
-                                contentDescription = "Profile",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                            )
-                        } else if (userName.isNotBlank()) {
-                            Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .background(YouTubeRed),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = userName.first().uppercase(),
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
+                    Box(modifier = Modifier.padding(start = 4.dp)) {
+                        IconButton(
+                            onClick = {
+                                if (isSignedIn) {
+                                    selectedTab = 3 // Go to Library/You
+                                } else {
+                                    launchSignIn()
+                                }
+                            },
+                            modifier = Modifier.size(30.dp)
+                        ) {
+                            if (userPhotoUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = userPhotoUrl,
+                                    contentDescription = "Profile",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(CircleShape)
+                                )
+                            } else if (userName.isNotBlank()) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(CircleShape)
+                                        .background(YouTubeRed),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = userName.first().uppercase(),
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.AccountCircle,
+                                    contentDescription = "Sign In",
+                                    tint = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.size(30.dp)
                                 )
                             }
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.AccountCircle,
-                                contentDescription = "Sign In",
-                                tint = MaterialTheme.colorScheme.onBackground,
-                                modifier = Modifier.size(28.dp)
-                            )
                         }
                     }
                 }
@@ -335,30 +342,7 @@ fun HomeScreen(
                                     state = listState,
                                     modifier = Modifier.fillMaxSize()
                                 ) {
-                                    // Pull-to-refresh hint
-                                    item {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable { viewModel.refreshFeed() }
-                                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                                            horizontalArrangement = Arrangement.Center,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Refresh,
-                                                contentDescription = "Refresh",
-                                                modifier = Modifier.size(16.dp),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                "Tap to refresh",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
+                                    // Removed pull-to-refresh hint text to look like native app
 
                                     items(videos, key = { it.id }) { video ->
                                         VideoCard(
@@ -420,18 +404,24 @@ fun HomeScreen(
                             }
                         }
                         else -> {
-                            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                                item {
+                            val config = LocalConfiguration.current
+                            val columns = if (config.orientation == Configuration.ORIENTATION_LANDSCAPE) 4 else 2
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(columns),
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(bottom = 16.dp, start = 8.dp, end = 8.dp)
+                            ) {
+                                item(span = { GridItemSpan(maxLineSpan) }) {
                                     Text(
                                         "Shorts",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onBackground,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
                                     )
                                 }
                                 items(shortsVideos, key = { it.id }) { video ->
-                                    VideoCard(
+                                    ShortVideoCard(
                                         video = video,
                                         onClick = { onVideoClick(video.id) }
                                     )

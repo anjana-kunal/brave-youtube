@@ -45,11 +45,11 @@ fun CategoryTabs(
                     fontWeight = if (allSelected) FontWeight.SemiBold else FontWeight.Normal
                 )
             },
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(16.dp),
             colors = FilterChipDefaults.filterChipColors(
-                containerColor = if (isDarkTheme) ChipDark else ChipLight,
-                labelColor = if (isDarkTheme) TextWhite else TextBlack,
-                selectedContainerColor = if (isDarkTheme) ChipSelectedDark else ChipSelectedLight,
+                containerColor = if (isDarkTheme) Color(0xFF272727) else Color(0xFFF2F2F2),
+                labelColor = if (isDarkTheme) Color.White else Color.Black,
+                selectedContainerColor = if (isDarkTheme) Color.White else Color.Black,
                 selectedLabelColor = if (isDarkTheme) Color.Black else Color.White
             ),
             border = null
@@ -68,11 +68,11 @@ fun CategoryTabs(
                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
                     )
                 },
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(16.dp),
                 colors = FilterChipDefaults.filterChipColors(
-                    containerColor = if (isDarkTheme) ChipDark else ChipLight,
-                    labelColor = if (isDarkTheme) TextWhite else TextBlack,
-                    selectedContainerColor = if (isDarkTheme) ChipSelectedDark else ChipSelectedLight,
+                    containerColor = if (isDarkTheme) Color(0xFF272727) else Color(0xFFF2F2F2),
+                    labelColor = if (isDarkTheme) Color.White else Color.Black,
+                    selectedContainerColor = if (isDarkTheme) Color.White else Color.Black,
                     selectedLabelColor = if (isDarkTheme) Color.Black else Color.White
                 ),
                 border = null

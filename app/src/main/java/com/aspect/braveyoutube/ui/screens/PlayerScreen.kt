@@ -36,6 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.media3.common.Player
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -83,12 +85,28 @@ fun PlayerScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val relatedVideos by viewModel.relatedVideos.collectAsState()
+    val configuration = LocalConfiguration.current
 
     var isDescriptionExpanded by remember { mutableStateOf(false) }
     var isFullscreen by remember { mutableStateOf(false) }
     var showQualitySheet by remember { mutableStateOf(false) }
     var selectedQualityLabel by remember { mutableStateOf<String?>(null) }
     var isDisliked by remember { mutableStateOf(false) }
+    var videoAspectRatio by remember { mutableFloatStateOf(16f / 9f) }
+
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    videoAspectRatio = videoSize.width.toFloat() / videoSize.height.toFloat()
+                }
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose {
+            exoPlayer.removeListener(listener)
+        }
+    }
 
     // Persisted like & subscribe state
     val likedVideoIds by homeViewModel?.likedVideoIds?.collectAsState() ?: remember { mutableStateOf(emptySet()) }
@@ -159,7 +177,7 @@ fun PlayerScreen(
             }
         } else {
             activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            WindowCompat.setDecorFitsSystemWindows(activity.window, true)
+            WindowCompat.setDecorFitsSystemWindows(activity.window, false)
             WindowInsetsControllerCompat(activity.window, activity.window.decorView).apply {
                 show(WindowInsetsCompat.Type.systemBars())
             }
@@ -190,7 +208,7 @@ fun PlayerScreen(
     DisposableEffect(Unit) {
         onDispose {
             activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            WindowCompat.setDecorFitsSystemWindows(activity.window, true)
+            WindowCompat.setDecorFitsSystemWindows(activity.window, false)
             WindowInsetsControllerCompat(activity.window, activity.window.decorView)
                 .show(WindowInsetsCompat.Type.systemBars())
         }
@@ -284,7 +302,8 @@ fun PlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
+                    .heightIn(max = configuration.screenHeightDp.dp * 0.65f)
+                    .aspectRatio(videoAspectRatio, matchHeightConstraintsFirst = false)
                     .background(Color.Black)
             ) {
                 AndroidView(
