@@ -131,7 +131,7 @@ fun AppNavGraph(navController: NavHostController) {
                     isStreamAlreadyLoaded = (streamLoadedForVideoId == videoId),
                     onBackClick = {
                         miniPlayerVideoId = videoId
-                        miniPlayerThumbnail = "https://img.youtube.com/vi/$videoId/mqdefault.jpg"
+                        miniPlayerThumbnail = "https://img.youtube.com/vi/$videoId/hq720.jpg"
                         isMiniPlayerVisible = true
                         isMiniPlayerPlaying = exoPlayer.isPlaying
                         navController.popBackStack()

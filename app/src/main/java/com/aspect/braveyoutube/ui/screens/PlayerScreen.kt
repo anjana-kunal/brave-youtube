@@ -172,7 +172,7 @@ fun PlayerScreen(
                 videoId = detail.id,
                 title = detail.title,
                 channelName = detail.channelName,
-                thumbnailUrl = "https://img.youtube.com/vi/${detail.id}/mqdefault.jpg",
+                thumbnailUrl = "https://img.youtube.com/vi/${detail.id}/hq720.jpg",
                 channelId = detail.channelId
             )
             onVideoInfoLoaded(detail.title, detail.channelName)

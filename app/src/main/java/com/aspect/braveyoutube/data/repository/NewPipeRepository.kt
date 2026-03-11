@@ -239,7 +239,7 @@ class NewPipeRepository(
             title = name ?: "",
             channelName = uploaderName ?: "",
             channelId = extractChannelId(uploaderUrl),
-            thumbnailUrl = thumbnails?.firstOrNull()?.url ?: "",
+            thumbnailUrl = if (videoId.isNotBlank()) "https://i.ytimg.com/vi/$videoId/hq720.jpg" else (thumbnails?.firstOrNull()?.url ?: ""),
             channelAvatarUrl = try { uploaderAvatars.firstOrNull()?.url ?: "" } catch (_: Exception) { "" },
             duration = formatDuration(duration),
             viewCount = formatViewCount(viewCount),

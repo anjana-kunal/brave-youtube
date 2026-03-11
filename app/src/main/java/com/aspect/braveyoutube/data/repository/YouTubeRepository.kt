@@ -277,9 +277,9 @@ private fun YouTubeSearchItem.toVideoItem(): VideoItem {
         title = snippet.title,
         channelName = snippet.channelTitle,
         channelId = snippet.channelId,
-        thumbnailUrl = snippet.thumbnails?.high?.url
+        thumbnailUrl = if (!id.videoId.isNullOrBlank()) "https://i.ytimg.com/vi/${id.videoId}/hq720.jpg" else (snippet.thumbnails?.high?.url
             ?: snippet.thumbnails?.medium?.url
-            ?: snippet.thumbnails?.default?.url ?: "",
+            ?: snippet.thumbnails?.default?.url ?: ""),
         publishedAt = snippet.publishedAt,
         description = snippet.description,
         isShort = isLikelyShort(snippet.title, snippet.description)
@@ -292,9 +292,9 @@ private fun YouTubeVideoItem.toVideoItem(): VideoItem {
         title = snippet.title,
         channelName = snippet.channelTitle,
         channelId = snippet.channelId,
-        thumbnailUrl = snippet.thumbnails?.high?.url
+        thumbnailUrl = if (id.isNotBlank()) "https://i.ytimg.com/vi/$id/hq720.jpg" else (snippet.thumbnails?.high?.url
             ?: snippet.thumbnails?.medium?.url
-            ?: snippet.thumbnails?.default?.url ?: "",
+            ?: snippet.thumbnails?.default?.url ?: ""),
         duration = contentDetails?.duration?.toReadableDuration() ?: "",
         viewCount = statistics?.viewCount?.formatCount() ?: "",
         publishedAt = snippet.publishedAt,
