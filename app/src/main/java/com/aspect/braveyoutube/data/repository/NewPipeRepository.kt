@@ -151,10 +151,11 @@ class NewPipeRepository(
     // ── Channel Videos ──
 
     /** Get recent videos from a channel — NO API KEY, NO QUOTA */
-    suspend fun getChannelVideos(channelUrl: String, maxResults: Int = 10): List<VideoItem> =
+    suspend fun getChannelVideos(channelIdOrUrl: String, maxResults: Int = 30): List<VideoItem> =
         withContext(Dispatchers.IO) {
             try {
-                val channelInfo = ChannelInfo.getInfo(ServiceList.YouTube, channelUrl)
+                val url = if (channelIdOrUrl.startsWith("http")) channelIdOrUrl else "https://www.youtube.com/channel/$channelIdOrUrl"
+                val channelInfo = ChannelInfo.getInfo(ServiceList.YouTube, url)
                 val tabs = channelInfo.tabs
 
                 // Get the "Videos" tab
@@ -179,10 +180,11 @@ class NewPipeRepository(
     // ── Channel Info ──
 
     /** Get channel name and avatar from a channel URL — NO API KEY, NO QUOTA */
-    suspend fun getChannelInfoData(channelUrl: String): ChannelInfoResult? =
+    suspend fun getChannelInfoData(channelIdOrUrl: String): ChannelInfoResult? =
         withContext(Dispatchers.IO) {
             try {
-                val info = ChannelInfo.getInfo(ServiceList.YouTube, channelUrl)
+                val url = if (channelIdOrUrl.startsWith("http")) channelIdOrUrl else "https://www.youtube.com/channel/$channelIdOrUrl"
+                val info = ChannelInfo.getInfo(ServiceList.YouTube, url)
                 ChannelInfoResult(
                     id = extractChannelId(info.url),
                     name = info.name ?: "",
@@ -190,7 +192,7 @@ class NewPipeRepository(
                     subscriberCount = info.subscriberCount
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "getChannelInfoData failed for $channelUrl: ${e.message}", e)
+                Log.e(TAG, "getChannelInfoData failed for $channelIdOrUrl: ${e.message}", e)
                 null
             }
         }
@@ -201,6 +203,35 @@ class NewPipeRepository(
         val avatarUrl: String,
         val subscriberCount: Long = -1
     )
+
+    /** Get full channel details for the Channel Profile screen */
+    suspend fun getChannelDetails(channelIdOrUrl: String): com.aspect.braveyoutube.data.model.ChannelDetail? =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = if (channelIdOrUrl.startsWith("http")) channelIdOrUrl else "https://www.youtube.com/channel/$channelIdOrUrl"
+                val info = ChannelInfo.getInfo(ServiceList.YouTube, url)
+                val extractedHandle = if (info.url.contains("@")) {
+                    "@" + info.url.substringAfter("@").substringBefore("/")
+                } else if (info.originalUrl.contains("@")) {
+                    "@" + info.originalUrl.substringAfter("@").substringBefore("/")
+                } else {
+                    "" 
+                }
+
+                com.aspect.braveyoutube.data.model.ChannelDetail(
+                    id = extractChannelId(info.url),
+                    name = info.name ?: "",
+                    avatarUrl = info.avatars?.firstOrNull()?.url ?: "",
+                    bannerUrl = info.banners?.firstOrNull()?.url ?: "",
+                    subscriberCount = formatViewCount(info.subscriberCount),
+                    description = info.description ?: "",
+                    handle = extractedHandle
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "getChannelDetails failed for $channelIdOrUrl: ${e.message}", e)
+                null
+            }
+        }
 
     // ── Shorts ──
 

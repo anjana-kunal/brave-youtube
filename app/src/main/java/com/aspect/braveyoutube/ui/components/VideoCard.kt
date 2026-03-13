@@ -28,6 +28,7 @@ import com.aspect.braveyoutube.data.model.VideoItem
 fun VideoCard(
     video: VideoItem,
     onClick: () -> Unit,
+    onChannelClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -76,14 +77,15 @@ fun VideoCard(
                 .padding(start = 12.dp, end = 12.dp, top = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Channel avatar
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
+        // Channel avatar
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable { onChannelClick(video.channelId) }
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
                 if (video.channelAvatarUrl.isNotBlank()) {
                     AsyncImage(
                         model = video.channelAvatarUrl,
@@ -157,6 +159,7 @@ fun VideoCard(
 fun SmallVideoCard(
     video: VideoItem,
     onClick: () -> Unit,
+    onChannelClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -219,7 +222,8 @@ fun SmallVideoCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clickable { onChannelClick(video.channelId) }
             )
             if (video.viewCount.isNotBlank()) {
                 Text(
@@ -256,6 +260,7 @@ fun SmallVideoCard(
 fun ShortVideoCard(
     video: VideoItem,
     onClick: () -> Unit,
+    onChannelClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(

@@ -46,7 +46,9 @@ object Routes {
     const val HOME = "home"
     const val SEARCH = "search"
     const val PLAYER = "player/{videoId}"
+    const val CHANNEL = "channel/{channelId}"
     fun player(videoId: String) = "player/$videoId"
+    fun channel(channelId: String) = "channel/$channelId"
 }
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -98,6 +100,9 @@ fun AppNavGraph(navController: NavHostController) {
                     },
                     onSearchClick = {
                         navController.navigate(Routes.SEARCH)
+                    },
+                    onChannelClick = { channelId ->
+                        navController.navigate(Routes.channel(channelId))
                     }
                 )
             }
@@ -149,6 +154,29 @@ fun AppNavGraph(navController: NavHostController) {
                     },
                     onStreamLoaded = { id ->
                         streamLoadedForVideoId = id
+                    },
+                    onChannelClick = { channelId ->
+                        navController.navigate(Routes.channel(channelId))
+                    }
+                )
+            }
+
+            composable(
+                route = Routes.CHANNEL,
+                arguments = listOf(navArgument("channelId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val channelId = backStackEntry.arguments?.getString("channelId") ?: return@composable
+                
+                // Using viewModel() to scope it to the backStackEntry 
+                val channelViewModel: com.aspect.braveyoutube.ui.ChannelViewModel = viewModel()
+                
+                com.aspect.braveyoutube.ui.screens.ChannelScreen(
+                    channelId = channelId,
+                    viewModel = channelViewModel,
+                    homeViewModel = homeViewModel,
+                    onBackClick = { navController.popBackStack() },
+                    onVideoClick = { videoId ->
+                         navController.navigate(Routes.player(videoId))
                     }
                 )
             }

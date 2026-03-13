@@ -48,6 +48,16 @@ data class ChannelInfo(
     val isVerified: Boolean = false
 )
 
+data class ChannelDetail(
+    val id: String,
+    val name: String,
+    val avatarUrl: String,
+    val bannerUrl: String,
+    val subscriberCount: String = "",
+    val description: String = "",
+    val handle: String = ""
+)
+
 /** Categories for the home feed */
 enum class FeedCategory(val displayName: String, val apiParam: String) {
     TRENDING("Trending", "0"),

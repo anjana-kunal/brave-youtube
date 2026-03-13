@@ -75,6 +75,7 @@ fun PlayerScreen(
     isStreamAlreadyLoaded: Boolean = false,
     onBackClick: () -> Unit,
     onVideoClick: (String) -> Unit,
+    onChannelClick: (String) -> Unit = {},
     onVideoInfoLoaded: (title: String, channel: String) -> Unit = { _, _ -> },
     onStreamLoaded: (String) -> Unit = {}
 ) {
@@ -519,7 +520,9 @@ fun PlayerScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { /* Navigate to channel */ }
+                            .clickable { 
+                                videoDetail?.channelId?.let { onChannelClick(it) } 
+                            }
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -759,7 +762,8 @@ fun PlayerScreen(
                     items(relatedVideos, key = { "rel_${it.id}" }) { video ->
                         RelatedVideoCard(
                             video = video,
-                            onClick = { onVideoClick(video.id) }
+                            onClick = { onVideoClick(video.id) },
+                            onChannelClick = { onChannelClick(video.channelId) }
                         )
                     }
                 } else if (!isLoading) {
@@ -967,7 +971,8 @@ private fun ActionPill(
 @Composable
 private fun RelatedVideoCard(
     video: com.aspect.braveyoutube.data.model.VideoItem,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onChannelClick: (String) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -1018,7 +1023,8 @@ private fun RelatedVideoCard(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { onChannelClick(video.channelId) },
                 contentAlignment = Alignment.Center
             ) {
                 if (video.channelAvatarUrl.isNotBlank()) {
@@ -1059,7 +1065,8 @@ private fun RelatedVideoCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
+                    modifier = Modifier.clickable { onChannelClick(video.channelId) }
                 )
             }
 

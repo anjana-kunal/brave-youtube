@@ -61,7 +61,8 @@ import com.google.android.gms.common.api.Scope
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
     onVideoClick: (String) -> Unit,
-    onSearchClick: () -> Unit
+    onSearchClick: () -> Unit,
+    onChannelClick: (String) -> Unit
 ) {
     val context = LocalContext.current
     val activity = context as Activity
@@ -359,7 +360,8 @@ fun HomeScreen(
                                         items(videos, key = { it.id }) { video ->
                                             VideoCard(
                                                 video = video,
-                                                onClick = { onVideoClick(video.id) }
+                                                onClick = { onVideoClick(video.id) },
+                                                onChannelClick = { onChannelClick(video.channelId) }
                                             )
                                         }
 
@@ -444,7 +446,8 @@ fun HomeScreen(
                                 items(shortsVideos, key = { it.id }) { video ->
                                     ShortVideoCard(
                                         video = video,
-                                        onClick = { onVideoClick(video.id) }
+                                        onClick = { onVideoClick(video.id) },
+                                        onChannelClick = { onChannelClick(video.channelId) }
                                     )
                                 }
                             }
