@@ -99,6 +99,9 @@ fun PlayerScreen(
     val currentRelatedVideos by rememberUpdatedState(relatedVideos)
     val currentAutoplay by rememberUpdatedState(autoplayEnabled)
     val currentOnVideoClick by rememberUpdatedState(onVideoClick)
+    val shortsData by (homeViewModel?.shortsVideos ?: kotlinx.coroutines.flow.MutableStateFlow(emptyList())).collectAsState()
+    val currentShorts by rememberUpdatedState(shortsData)
+    val currentVideoId by rememberUpdatedState(videoId)
 
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
@@ -184,7 +187,11 @@ fun PlayerScreen(
     fun toggleFullscreen() {
         isFullscreen = !isFullscreen
         if (isFullscreen) {
-            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            activity.requestedOrientation = if (videoAspectRatio < 1.0f) {
+                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            }
             WindowCompat.setDecorFitsSystemWindows(activity.window, false)
             WindowInsetsControllerCompat(activity.window, activity.window.decorView).apply {
                 hide(WindowInsetsCompat.Type.systemBars())
@@ -196,6 +203,13 @@ fun PlayerScreen(
             WindowInsetsControllerCompat(activity.window, activity.window.decorView).apply {
                 show(WindowInsetsCompat.Type.systemBars())
             }
+        }
+    }
+
+    // Auto-enter portrait fullscreen for Shorts
+    LaunchedEffect(videoAspectRatio) {
+        if (videoAspectRatio < 1.0f && !isFullscreen) {
+            toggleFullscreen()
         }
     }
 
@@ -264,6 +278,33 @@ fun PlayerScreen(
                                     }
                                     seekTrigger = System.currentTimeMillis()
                                     return true
+                                }
+
+                                override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                                    if (videoAspectRatio >= 1.0f) return false
+                                    if (e1 == null) return false
+                                    val deltaY = e2.y - e1.y
+                                    val deltaX = e2.x - e1.x
+                                    if (kotlin.math.abs(deltaY) > kotlin.math.abs(deltaX)) {
+                                        if (deltaY < -100 && velocityY < -100) {
+                                            // Swipe Up -> Next
+                                            val idx = currentShorts.indexOfFirst { it.id == currentVideoId }
+                                            if (idx != -1 && idx + 1 < currentShorts.size) {
+                                                currentOnVideoClick(currentShorts[idx + 1].id)
+                                            } else if (currentRelatedVideos.isNotEmpty()) {
+                                                currentOnVideoClick(currentRelatedVideos.first().id)
+                                            }
+                                            return true
+                                        } else if (deltaY > 100 && velocityY > 100) {
+                                            // Swipe Down -> Prev
+                                            val idx = currentShorts.indexOfFirst { it.id == currentVideoId }
+                                            if (idx > 0) {
+                                                currentOnVideoClick(currentShorts[idx - 1].id)
+                                            }
+                                            return true
+                                        }
+                                    }
+                                    return false
                                 }
                             }
                         )
@@ -359,6 +400,33 @@ fun PlayerScreen(
                                         }
                                         seekTrigger = System.currentTimeMillis()
                                         return true
+                                    }
+
+                                    override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                                        if (videoAspectRatio >= 1.0f) return false
+                                        if (e1 == null) return false
+                                        val deltaY = e2.y - e1.y
+                                        val deltaX = e2.x - e1.x
+                                        if (kotlin.math.abs(deltaY) > kotlin.math.abs(deltaX)) {
+                                            if (deltaY < -100 && velocityY < -100) {
+                                                // Swipe Up -> Next
+                                                val idx = currentShorts.indexOfFirst { it.id == currentVideoId }
+                                                if (idx != -1 && idx + 1 < currentShorts.size) {
+                                                    currentOnVideoClick(currentShorts[idx + 1].id)
+                                                } else if (currentRelatedVideos.isNotEmpty()) {
+                                                    currentOnVideoClick(currentRelatedVideos.first().id)
+                                                }
+                                                return true
+                                            } else if (deltaY > 100 && velocityY > 100) {
+                                                // Swipe Down -> Prev
+                                                val idx = currentShorts.indexOfFirst { it.id == currentVideoId }
+                                                if (idx > 0) {
+                                                    currentOnVideoClick(currentShorts[idx - 1].id)
+                                                }
+                                                return true
+                                            }
+                                        }
+                                        return false
                                     }
                                 }
                             )
