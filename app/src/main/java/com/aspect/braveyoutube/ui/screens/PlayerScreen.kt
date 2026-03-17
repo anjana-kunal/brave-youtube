@@ -10,6 +10,8 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -32,20 +34,24 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.media3.common.Player
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.text.HtmlCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
@@ -87,6 +93,7 @@ fun PlayerScreen(
     val error by viewModel.error.collectAsState()
     val relatedVideos by viewModel.relatedVideos.collectAsState()
     val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
 
     var isDescriptionExpanded by remember { mutableStateOf(false) }
     var isFullscreen by remember { mutableStateOf(false) }
@@ -94,6 +101,17 @@ fun PlayerScreen(
     var selectedQualityLabel by remember { mutableStateOf<String?>(null) }
     var isDisliked by remember { mutableStateOf(false) }
     var videoAspectRatio by remember { mutableFloatStateOf(16f / 9f) }
+    var isCaptionsEnabled by remember { mutableStateOf(false) }
+    var showOverlayControls by remember { mutableStateOf(true) }
+    var playbackPositionMs by remember { mutableLongStateOf(0L) }
+    var playbackDurationMs by remember { mutableLongStateOf(0L) }
+    var isPlaying by remember { mutableStateOf(false) }
+    var collapseDragOffsetPx by remember { mutableFloatStateOf(0f) }
+    val animatedCollapseOffsetPx by animateFloatAsState(
+        targetValue = collapseDragOffsetPx,
+        animationSpec = tween(durationMillis = 140),
+        label = "collapseDrag"
+    )
 
     val autoplayEnabled by homeViewModel?.autoplayEnabled?.collectAsState() ?: remember { mutableStateOf(true) }
     val currentRelatedVideos by rememberUpdatedState(relatedVideos)
@@ -111,6 +129,9 @@ fun PlayerScreen(
                 }
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
+                playbackPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L)
+                playbackDurationMs = exoPlayer.duration.coerceAtLeast(0L)
+                isPlaying = exoPlayer.isPlaying
                 if (playbackState == Player.STATE_ENDED) {
                     if (currentAutoplay) {
                         currentRelatedVideos.firstOrNull()?.let { nextVideo ->
@@ -141,6 +162,22 @@ fun PlayerScreen(
         if (seekDirection != 0) {
             delay(700)
             seekDirection = 0
+        }
+    }
+
+    LaunchedEffect(exoPlayer) {
+        while (true) {
+            playbackPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L)
+            playbackDurationMs = exoPlayer.duration.coerceAtLeast(0L)
+            isPlaying = exoPlayer.isPlaying
+            delay(250)
+        }
+    }
+
+    LaunchedEffect(showOverlayControls, isPlaying) {
+        if (showOverlayControls && isPlaying) {
+            delay(2800)
+            showOverlayControls = false
         }
     }
 
@@ -233,7 +270,7 @@ fun PlayerScreen(
         }
     }
 
-    // Cleanup on dispose (don't release player — shared for mini-player)
+    // Cleanup on dispose (don't release player ΓÇö shared for mini-player)
     DisposableEffect(Unit) {
         onDispose {
             activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -243,7 +280,7 @@ fun PlayerScreen(
         }
     }
 
-    // ── FULLSCREEN MODE ──
+    // ΓöÇΓöÇ FULLSCREEN MODE ΓöÇΓöÇ
     if (isFullscreen) {
         Box(
             modifier = Modifier
@@ -268,6 +305,11 @@ fun PlayerScreen(
                     object : FrameLayout(ctx) {
                         private val gestureDetector = GestureDetector(ctx,
                             object : GestureDetector.SimpleOnGestureListener() {
+                                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                                    showOverlayControls = !showOverlayControls
+                                    return true
+                                }
+
                                 override fun onDoubleTap(e: MotionEvent): Boolean {
                                     if (e.x < width / 2) {
                                         exoPlayer.seekTo((exoPlayer.currentPosition - 10000).coerceAtLeast(0))
@@ -323,53 +365,71 @@ fun PlayerScreen(
             // Seek feedback animation
             SeekFeedbackOverlay(seekDirection)
 
-            // Top overlay: back + quality + exit fullscreen
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                IconButton(onClick = { toggleFullscreen() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Autoplay toggle
-                    Text(
-                        text = if (autoplayEnabled) "Auto ON" else "Auto OFF",
-                        color = if (autoplayEnabled) YouTubeRed else Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
+            androidx.compose.animation.AnimatedVisibility(visible = showOverlayControls, enter = fadeIn(), exit = fadeOut()) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Top overlay: back + quality + exit fullscreen
+                    Row(
                         modifier = Modifier
-                            .clickable { homeViewModel?.toggleAutoplay(!autoplayEnabled) }
-                            .padding(horizontal = 8.dp)
-                    )
-                    // Quality button
-                    IconButton(onClick = { showQualitySheet = true }) {
-                        Icon(Icons.Default.Tune, "Quality", tint = Color.White)
+                            .align(Alignment.TopStart)
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        IconButton(onClick = { toggleFullscreen() }) {
+                            Icon(Icons.Default.KeyboardArrowDown, "Collapse", tint = Color.White)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (autoplayEnabled) "Auto ON" else "Auto OFF",
+                                color = if (autoplayEnabled) YouTubeRed else Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable { homeViewModel?.toggleAutoplay(!autoplayEnabled) }
+                                    .padding(horizontal = 8.dp)
+                            )
+                            IconButton(onClick = { }) {
+                                Icon(Icons.Default.Cast, "Cast", tint = Color.White)
+                            }
+                            IconButton(onClick = { isCaptionsEnabled = !isCaptionsEnabled }) {
+                                Icon(
+                                    Icons.Default.ClosedCaption,
+                                    "Captions",
+                                    tint = if (isCaptionsEnabled) YouTubeRed else Color.White
+                                )
+                            }
+                            IconButton(onClick = { showQualitySheet = true }) {
+                                Icon(Icons.Default.Settings, "Settings", tint = Color.White)
+                            }
+                            IconButton(onClick = { toggleFullscreen() }) {
+                                Icon(Icons.Default.FullscreenExit, "Exit Fullscreen", tint = Color.White)
+                            }
+                        }
                     }
-                    // Exit fullscreen
-                    IconButton(onClick = { toggleFullscreen() }) {
-                        Icon(Icons.Default.FullscreenExit, "Exit Fullscreen", tint = Color.White)
-                    }
+
                 }
             }
         }
     } else {
-        // ── NORMAL MODE ──
+        // ΓöÇΓöÇ NORMAL MODE ΓöÇΓöÇ
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
                 .statusBarsPadding()
         ) {
-            // ── Video Player ──
+            // ΓöÇΓöÇ Video Player ΓöÇΓöÇ
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = configuration.screenHeightDp.dp * 0.65f)
                     .aspectRatio(videoAspectRatio, matchHeightConstraintsFirst = false)
+                    .offset { IntOffset(0, animatedCollapseOffsetPx.toInt()) }
+                    .graphicsLayer {
+                        val p = (animatedCollapseOffsetPx / with(density) { 360.dp.toPx() }).coerceIn(0f, 1f)
+                        scaleX = 1f - (0.08f * p)
+                        scaleY = 1f - (0.08f * p)
+                    }
                     .background(Color.Black)
             ) {
                 AndroidView(
@@ -388,8 +448,17 @@ fun PlayerScreen(
                         }
                         // Wrap in FrameLayout with double-tap gesture detection
                         object : FrameLayout(ctx) {
+                            private var downX = 0f
+                            private var downY = 0f
+                            private var draggingCollapse = false
+
                             private val gestureDetector = GestureDetector(ctx,
                                 object : GestureDetector.SimpleOnGestureListener() {
+                                    override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                                        showOverlayControls = !showOverlayControls
+                                        return true
+                                    }
+
                                     override fun onDoubleTap(e: MotionEvent): Boolean {
                                         if (e.x < width / 2) {
                                             exoPlayer.seekTo((exoPlayer.currentPosition - 10000).coerceAtLeast(0))
@@ -403,10 +472,10 @@ fun PlayerScreen(
                                     }
 
                                     override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-                                        if (videoAspectRatio >= 1.0f) return false
                                         if (e1 == null) return false
                                         val deltaY = e2.y - e1.y
                                         val deltaX = e2.x - e1.x
+                                        if (videoAspectRatio >= 1.0f) return false
                                         if (kotlin.math.abs(deltaY) > kotlin.math.abs(deltaX)) {
                                             if (deltaY < -100 && velocityY < -100) {
                                                 // Swipe Up -> Next
@@ -434,6 +503,42 @@ fun PlayerScreen(
                                 addView(playerView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
                             }
                             override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+                                when (ev.actionMasked) {
+                                    MotionEvent.ACTION_DOWN -> {
+                                        downX = ev.x
+                                        downY = ev.y
+                                        draggingCollapse = false
+                                    }
+
+                                    MotionEvent.ACTION_MOVE -> {
+                                        if (videoAspectRatio >= 1.0f) {
+                                            val deltaY = ev.y - downY
+                                            val deltaX = kotlin.math.abs(ev.x - downX)
+                                            if (deltaY > 0f && deltaY > (deltaX * 1.15f)) {
+                                                draggingCollapse = true
+                                                val maxDrag = with(density) { 320.dp.toPx() }
+                                                collapseDragOffsetPx = deltaY.coerceAtMost(maxDrag)
+                                                return true
+                                            }
+                                        }
+                                    }
+
+                                    MotionEvent.ACTION_UP,
+                                    MotionEvent.ACTION_CANCEL -> {
+                                        if (draggingCollapse) {
+                                            val collapseThreshold = with(density) { 170.dp.toPx() }
+                                            val shouldCollapse = collapseDragOffsetPx >= collapseThreshold
+                                            collapseDragOffsetPx = 0f
+                                            draggingCollapse = false
+                                            if (shouldCollapse) {
+                                                onBackClick()
+                                            }
+                                            return true
+                                        }
+                                        draggingCollapse = false
+                                        collapseDragOffsetPx = 0f
+                                    }
+                                }
                                 gestureDetector.onTouchEvent(ev)
                                 return super.dispatchTouchEvent(ev)
                             }
@@ -445,55 +550,60 @@ fun PlayerScreen(
                 // Seek feedback animation
                 SeekFeedbackOverlay(seekDirection)
 
-                // Top-left: back button
-                IconButton(
-                    onClick = onBackClick,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.White
-                    )
-                }
-
-                // Top-right: quality + fullscreen buttons
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Autoplay toggle
-                    Text(
-                        text = if (autoplayEnabled) "Auto ON" else "Auto OFF",
-                        color = if (autoplayEnabled) YouTubeRed else Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .clickable { homeViewModel?.toggleAutoplay(!autoplayEnabled) }
-                            .padding(end = 4.dp)
-                    )
-                    
-                    if (qualities.size > 1) {
-                        IconButton(onClick = { showQualitySheet = true }) {
+                androidx.compose.animation.AnimatedVisibility(visible = showOverlayControls, enter = fadeIn(), exit = fadeOut()) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        IconButton(
+                            onClick = onBackClick,
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(4.dp)
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.Tune,
-                                contentDescription = "Quality",
-                                tint = Color.White,
-                                modifier = Modifier.size(22.dp)
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Collapse",
+                                tint = Color.White
                             )
                         }
-                    }
-                    IconButton(onClick = { toggleFullscreen() }) {
-                        Icon(
-                            imageVector = Icons.Default.Fullscreen,
-                            contentDescription = "Fullscreen",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
+
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (autoplayEnabled) "Auto ON" else "Auto OFF",
+                                color = if (autoplayEnabled) YouTubeRed else Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable { homeViewModel?.toggleAutoplay(!autoplayEnabled) }
+                                    .padding(end = 4.dp)
+                            )
+                            IconButton(onClick = { }) {
+                                Icon(Icons.Default.Cast, "Cast", tint = Color.White)
+                            }
+                            IconButton(onClick = { isCaptionsEnabled = !isCaptionsEnabled }) {
+                                Icon(
+                                    imageVector = Icons.Default.ClosedCaption,
+                                    contentDescription = "Captions",
+                                    tint = if (isCaptionsEnabled) YouTubeRed else Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            IconButton(onClick = { showQualitySheet = true }) {
+                                Icon(Icons.Default.Settings, "Settings", tint = Color.White)
+                            }
+                            IconButton(onClick = { toggleFullscreen() }) {
+                                Icon(
+                                    imageVector = Icons.Default.Fullscreen,
+                                    contentDescription = "Fullscreen",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+
                     }
                 }
 
@@ -510,11 +620,11 @@ fun PlayerScreen(
                 }
             }
 
-            // ── Content below player ──
+            // ΓöÇΓöÇ Content below player ΓöÇΓöÇ
             LazyColumn(
                 modifier = Modifier.fillMaxSize()
             ) {
-                // ── Title ──
+                // ΓöÇΓöÇ Title ΓöÇΓöÇ
                 item {
                     Text(
                         text = videoDetail?.title ?: "Loading...",
@@ -527,7 +637,7 @@ fun PlayerScreen(
                     )
                 }
 
-                // ── View count + date (tap for description) ──
+                // ΓöÇΓöÇ View count + date (tap for description) ΓöÇΓöÇ
                 item {
                     Row(
                         modifier = Modifier
@@ -544,8 +654,8 @@ fun PlayerScreen(
                                         append(" views")
                                     }
                                     if (d.publishedAt.isNotBlank()) {
-                                        if (d.viewCount > 0) append("  ·  ")
-                                        append(d.publishedAt.take(10))
+                                        if (d.viewCount > 0) append(" - ")
+                                        append(formatPublishedAt(d.publishedAt))
                                     }
                                 }
                             },
@@ -563,7 +673,7 @@ fun PlayerScreen(
                     }
                 }
 
-                // ── Description (expandable) ──
+                // ΓöÇΓöÇ Description (expandable) ΓöÇΓöÇ
                 if (isDescriptionExpanded && videoDetail?.description?.isNotBlank() == true) {
                     item {
                         Surface(
@@ -574,7 +684,7 @@ fun PlayerScreen(
                                 .padding(horizontal = 14.dp, vertical = 6.dp)
                         ) {
                             Text(
-                                text = videoDetail!!.description,
+                                text = sanitizeDescription(videoDetail!!.description),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onBackground,
                                 modifier = Modifier.padding(12.dp)
@@ -583,7 +693,7 @@ fun PlayerScreen(
                     }
                 }
 
-                // ── Channel Row (YouTube-style) ──
+                // ΓöÇΓöÇ Channel Row (YouTube-style) ΓöÇΓöÇ
                 item {
                     Row(
                         modifier = Modifier
@@ -634,7 +744,7 @@ fun PlayerScreen(
 
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        // Subscribe button (pill) — toggles in-app subscription
+                        // Subscribe button (pill) ΓÇö toggles in-app subscription
                         Button(
                             onClick = {
                                 videoDetail?.channelId?.let { chId ->
@@ -670,7 +780,7 @@ fun PlayerScreen(
                     }
                 }
 
-                // ── Action Buttons (YouTube-style horizontal scrolling pills) ──
+                // ΓöÇΓöÇ Action Buttons (YouTube-style horizontal scrolling pills) ΓöÇΓöÇ
                 item {
                     Row(
                         modifier = Modifier
@@ -767,7 +877,7 @@ fun PlayerScreen(
                     )
                 }
 
-                // ── Comments Preview ──
+                // ΓöÇΓöÇ Comments Preview ΓöÇΓöÇ
                 item {
                     Row(
                         modifier = Modifier
@@ -825,7 +935,7 @@ fun PlayerScreen(
                     Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                 }
 
-                // ── Related Videos (full-width cards like real YouTube) ──
+                // ΓöÇΓöÇ Related Videos (full-width cards like real YouTube) ΓöÇΓöÇ
                 if (relatedVideos.isNotEmpty()) {
                     items(relatedVideos, key = { "rel_${it.id}" }) { video ->
                         RelatedVideoCard(
@@ -872,7 +982,7 @@ fun PlayerScreen(
         }
     }
 
-    // ── Quality Picker Bottom Sheet ──
+    // ΓöÇΓöÇ Quality Picker Bottom Sheet ΓöÇΓöÇ
     if (showQualitySheet) {
         ModalBottomSheet(
             onDismissRequest = { showQualitySheet = false },
@@ -919,7 +1029,7 @@ fun PlayerScreen(
                                 )
                                 if (quality.audioUrl != null) {
                                     Text(
-                                        text = "HD • Video + Audio",
+                                        text = "HD ΓÇó Video + Audio",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -1003,6 +1113,81 @@ private fun SeekFeedbackOverlay(seekDirection: Int) {
 }
 
 @Composable
+private fun BottomSeekBarOverlay(
+    modifier: Modifier = Modifier,
+    positionMs: Long,
+    durationMs: Long,
+    isFullscreen: Boolean,
+    isPlaying: Boolean,
+    onPlayPause: () -> Unit,
+    onSeekTo: (Long) -> Unit,
+    onToggleFullscreen: () -> Unit
+) {
+    val safeDuration = durationMs.coerceAtLeast(1L)
+    val progress = (positionMs.toFloat() / safeDuration.toFloat()).coerceIn(0f, 1f)
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Color.Black.copy(alpha = 0.30f))
+            .padding(horizontal = 8.dp, vertical = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onPlayPause, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Text(
+                text = "${formatDuration(positionMs)} / ${formatDuration(durationMs)}",
+                color = Color.White,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            IconButton(onClick = onToggleFullscreen, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    imageVector = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                    contentDescription = "Fullscreen",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        Slider(
+            value = progress,
+            onValueChange = { fraction -> onSeekTo((fraction * safeDuration).toLong()) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 0.dp),
+            colors = SliderDefaults.colors(
+                thumbColor = YouTubeRed,
+                activeTrackColor = YouTubeRed,
+                inactiveTrackColor = Color.White.copy(alpha = 0.35f)
+            )
+        )
+    }
+}
+
+private fun formatDuration(ms: Long): String {
+    val totalSec = (ms.coerceAtLeast(0L) / 1000L)
+    val h = totalSec / 3600
+    val m = (totalSec % 3600) / 60
+    val s = totalSec % 60
+    return if (h > 0) String.format("%d:%02d:%02d", h, m, s) else String.format("%d:%02d", m, s)
+}
+
+@Composable
 private fun ActionPill(
     icon: ImageVector,
     label: String,
@@ -1035,7 +1220,7 @@ private fun ActionPill(
     }
 }
 
-/** YouTube-style related video card — full-width thumbnail with info row below */
+/** YouTube-style related video card ΓÇö full-width thumbnail with info row below */
 @Composable
 private fun RelatedVideoCard(
     video: com.aspect.braveyoutube.data.model.VideoItem,
@@ -1126,8 +1311,8 @@ private fun RelatedVideoCard(
                 Text(
                     text = buildString {
                         append(video.channelName)
-                        if (video.viewCount.isNotBlank()) append(" · ${video.viewCount} views")
-                        if (video.publishedAt.isNotBlank()) append(" · ${video.publishedAt.take(10)}")
+                        if (video.viewCount.isNotBlank()) append(" ┬╖ ${video.viewCount} views")
+                        if (video.publishedAt.isNotBlank()) append(" ┬╖ ${video.publishedAt.take(10)}")
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1162,4 +1347,18 @@ private fun formatCompactNumber(count: Long): String {
         count >= 1_000 -> String.format("%.1fK", count / 1_000.0)
         else -> count.toString()
     }
+}
+
+private fun sanitizeDescription(raw: String): String {
+    if (raw.isBlank()) return ""
+    val cleaned = HtmlCompat.fromHtml(raw, HtmlCompat.FROM_HTML_MODE_LEGACY).toString()
+    return cleaned.replace(Regex("\\n{3,}"), "\n\n").trim()
+}
+
+private fun formatPublishedAt(raw: String): String {
+    val trimmed = raw.trim()
+    if (trimmed.isBlank()) return ""
+    val lower = trimmed.lowercase()
+    if (lower.contains("ago") || lower.contains("streamed")) return trimmed
+    return if (trimmed.length >= 10) trimmed.take(10) else trimmed
 }

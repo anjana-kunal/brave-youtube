@@ -26,6 +26,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.Player
@@ -36,6 +38,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import coil.compose.AsyncImage
 import com.aspect.braveyoutube.ui.HomeViewModel
 import com.aspect.braveyoutube.ui.screens.HomeScreen
 import com.aspect.braveyoutube.ui.screens.PlayerScreen
@@ -183,32 +186,41 @@ fun AppNavGraph(navController: NavHostController) {
         }
 
         // ── Floating Draggable Mini Player (YouTube PiP style) ──
-        if (isMiniPlayerVisible && !isOnPlayerScreen && miniPlayerVideoId != null) {
-            FloatingMiniPlayer(
-                title = miniPlayerTitle,
-                channelName = miniPlayerChannel,
-                isPlaying = isMiniPlayerPlaying,
-                exoPlayer = exoPlayer,
-                onPlayPauseClick = {
-                    if (exoPlayer.isPlaying) {
-                        exoPlayer.pause()
-                        isMiniPlayerPlaying = false
-                    } else {
-                        exoPlayer.play()
-                        isMiniPlayerPlaying = true
+        AnimatedVisibility(
+            visible = isMiniPlayerVisible && !isOnPlayerScreen && miniPlayerVideoId != null,
+            enter = fadeIn(animationSpec = tween(110)) +
+                slideInVertically(animationSpec = tween(110), initialOffsetY = { it / 6 }),
+            exit = fadeOut(animationSpec = tween(90)) +
+                slideOutVertically(animationSpec = tween(90), targetOffsetY = { it / 8 })
+        ) {
+            if (miniPlayerVideoId != null) {
+                FloatingMiniPlayer(
+                    title = miniPlayerTitle,
+                    channelName = miniPlayerChannel,
+                    thumbnailUrl = miniPlayerThumbnail,
+                    isPlaying = isMiniPlayerPlaying,
+                    exoPlayer = exoPlayer,
+                    onPlayPauseClick = {
+                        if (exoPlayer.isPlaying) {
+                            exoPlayer.pause()
+                            isMiniPlayerPlaying = false
+                        } else {
+                            exoPlayer.play()
+                            isMiniPlayerPlaying = true
+                        }
+                    },
+                    onClick = {
+                        isMiniPlayerVisible = false
+                        navController.navigate(Routes.player(miniPlayerVideoId!!))
+                    },
+                    onClose = {
+                        exoPlayer.stop()
+                        isMiniPlayerVisible = false
+                        miniPlayerVideoId = null
+                        streamLoadedForVideoId = ""
                     }
-                },
-                onClick = {
-                    isMiniPlayerVisible = false
-                    navController.navigate(Routes.player(miniPlayerVideoId!!))
-                },
-                onClose = {
-                    exoPlayer.stop()
-                    isMiniPlayerVisible = false
-                    miniPlayerVideoId = null
-                    streamLoadedForVideoId = ""
-                }
-            )
+                )
+            }
         }
     }
 }
@@ -226,6 +238,7 @@ fun AppNavGraph(navController: NavHostController) {
 private fun FloatingMiniPlayer(
     title: String,
     channelName: String,
+    thumbnailUrl: String,
     isPlaying: Boolean,
     exoPlayer: ExoPlayer,
     onPlayPauseClick: () -> Unit,
@@ -259,6 +272,23 @@ private fun FloatingMiniPlayer(
 
     // Show controls overlay on tap
     var showControls by remember { mutableStateOf(true) }
+    var hasRenderedFrame by remember { mutableStateOf(false) }
+
+    LaunchedEffect(thumbnailUrl) {
+        hasRenderedFrame = false
+    }
+
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onRenderedFirstFrame() {
+                hasRenderedFrame = true
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose {
+            exoPlayer.removeListener(listener)
+        }
+    }
 
     // Auto-hide controls after 3 seconds
     LaunchedEffect(showControls) {
@@ -314,6 +344,18 @@ private fun FloatingMiniPlayer(
                 .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                 .clickable { showControls = !showControls }
         )
+
+        if (!hasRenderedFrame && thumbnailUrl.isNotBlank()) {
+            AsyncImage(
+                model = thumbnailUrl,
+                contentDescription = title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+            )
+        }
 
         // Controls overlay
         AnimatedVisibility(

@@ -240,18 +240,34 @@ class NewPipeRepository(
         withContext(Dispatchers.IO) {
             try {
                 val service = ServiceList.YouTube
-                val searchInfo = SearchInfo.getInfo(
-                    service,
-                    service.searchQHFactory.fromQuery("#shorts")
-                )
+                val queries = listOf("#shorts", "trending shorts", "viral shorts", "youtube shorts")
+                val pooled = mutableListOf<VideoItem>()
 
-                val shorts = searchInfo.relatedItems
-                    .filterIsInstance<StreamInfoItem>()
-                    .filter { it.duration in 1..60 || it.name?.lowercase()?.contains("shorts") == true }
-                    .map { it.toVideoItem().copy(isShort = true) }
+                for (q in queries.shuffled()) {
+                    val searchInfo = SearchInfo.getInfo(
+                        service,
+                        service.searchQHFactory.fromQuery(q)
+                    )
 
-                Log.d(TAG, "Shorts: ${shorts.size} results")
-                shorts.take(30)
+                    pooled += searchInfo.relatedItems
+                        .filterIsInstance<StreamInfoItem>()
+                        .filter {
+                            val title = it.name?.lowercase() ?: ""
+                            val isShortDuration = it.duration in 1..70
+                            isShortDuration || title.contains("shorts") || title.contains("short")
+                        }
+                        .map { it.toVideoItem().copy(isShort = true) }
+                }
+
+                val result = pooled
+                    .filter { !adBlockEngine.isPromotedContent(it) }
+                    .filter { it.id.isNotBlank() }
+                    .distinctBy { it.id }
+                    .shuffled()
+                    .take(60)
+
+                Log.d(TAG, "Shorts: ${result.size} mixed results")
+                result
             } catch (e: Exception) {
                 Log.e(TAG, "getShorts failed: ${e.message}", e)
                 emptyList()

@@ -1,6 +1,9 @@
 package com.aspect.braveyoutube.ui.components
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PlayArrow
@@ -14,7 +17,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -38,9 +40,12 @@ fun YouTubeBottomNav(
     modifier: Modifier = Modifier
 ) {
     NavigationBar(
-        modifier = modifier,
+        modifier = modifier
+            .navigationBarsPadding()
+            .height(80.dp),
         containerColor = MaterialTheme.colorScheme.background,
-        tonalElevation = 0.dp
+        tonalElevation = 0.dp,
+        windowInsets = NavigationBarDefaults.windowInsets
     ) {
         bottomNavItems.forEachIndexed { index, item ->
             NavigationBarItem(
@@ -50,16 +55,17 @@ fun YouTubeBottomNav(
                     Icon(
                         imageVector = if (selectedTab == index) item.selectedIcon else item.unselectedIcon,
                         contentDescription = item.label,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(23.dp)
                     )
                 },
                 label = {
                     Text(
                         text = item.label,
-                        fontSize = 10.sp,
-                        maxLines = 1
+                        fontSize = 11.sp,
+                        maxLines = 1,
                     )
                 },
+                alwaysShowLabel = true,
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.onBackground,
                     selectedTextColor = MaterialTheme.colorScheme.onBackground,

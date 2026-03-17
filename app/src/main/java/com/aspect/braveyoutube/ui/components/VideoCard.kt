@@ -20,6 +20,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.aspect.braveyoutube.data.model.VideoItem
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeParseException
 
 /**
  * YouTube-style full-width video card for the home feed.
@@ -88,7 +92,7 @@ fun VideoCard(
         ) {
                 if (video.channelAvatarUrl.isNotBlank()) {
                     AsyncImage(
-                        model = video.channelAvatarUrl,
+                        model = normalizeAvatarUrl(video.channelAvatarUrl),
                         contentDescription = video.channelName,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize().clip(CircleShape)
@@ -124,7 +128,7 @@ fun VideoCard(
                         }
                         if (video.publishedAt.isNotBlank()) {
                             append(" · ")
-                            append(video.publishedAt)
+                            append(toRelativeTime(video.publishedAt))
                         }
                     },
                     style = MaterialTheme.typography.bodySmall,
@@ -227,7 +231,7 @@ fun SmallVideoCard(
             )
             if (video.viewCount.isNotBlank()) {
                 Text(
-                    text = "${video.viewCount} views · ${video.publishedAt}",
+                    text = "${video.viewCount} views · ${toRelativeTime(video.publishedAt)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -249,6 +253,57 @@ fun SmallVideoCard(
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+private fun normalizeAvatarUrl(url: String): String {
+    if (url.isBlank()) return url
+    return when {
+        url.startsWith("//") -> "https:$url"
+        url.startsWith("http://") -> url.replaceFirst("http://", "https://")
+        else -> url
+    }
+}
+
+private fun toRelativeTime(raw: String): String {
+    if (raw.isBlank()) return ""
+    val lower = raw.lowercase()
+    if (lower.contains("ago") || lower.contains("streamed")) return raw
+
+    val publishedInstant = try {
+        Instant.parse(raw)
+    } catch (_: DateTimeParseException) {
+        try {
+            Instant.parse(raw.replace(" ", "T") + "Z")
+        } catch (_: Exception) {
+            return raw.take(10)
+        }
+    }
+
+    val now = Instant.now().atOffset(ZoneOffset.UTC)
+    val published = publishedInstant.atOffset(ZoneOffset.UTC)
+    val duration = Duration.between(published, now)
+    val minutes = duration.toMinutes().coerceAtLeast(0)
+    val hours = duration.toHours().coerceAtLeast(0)
+    val days = duration.toDays().coerceAtLeast(0)
+
+    return when {
+        minutes < 1 -> "just now"
+        minutes < 60 -> if (minutes == 1L) "1 minute ago" else "$minutes minutes ago"
+        hours < 24 -> if (hours == 1L) "1 hour ago" else "$hours hours ago"
+        days < 7 -> if (days == 1L) "1 day ago" else "$days days ago"
+        days < 30 -> {
+            val weeks = (days / 7).coerceAtLeast(1)
+            if (weeks == 1L) "1 week ago" else "$weeks weeks ago"
+        }
+        days < 365 -> {
+            val months = (days / 30).coerceAtLeast(1)
+            if (months == 1L) "1 month ago" else "$months months ago"
+        }
+        else -> {
+            val years = (days / 365).coerceAtLeast(1)
+            if (years == 1L) "1 year ago" else "$years years ago"
         }
     }
 }

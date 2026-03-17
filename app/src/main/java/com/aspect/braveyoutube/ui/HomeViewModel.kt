@@ -26,6 +26,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import java.util.Locale
+import kotlin.random.Random
 
 /**
  * ViewModel for the Home / Feed screen.
@@ -124,6 +125,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _shortsLoading = MutableStateFlow(false)
     val shortsLoading: StateFlow<Boolean> = _shortsLoading.asStateFlow()
+    private var lastShortsLoadedAt: Long = 0L
 
     private var nextPageToken: String? = null
     private var hasLoadedPersonalizedFeed = false
@@ -178,14 +180,79 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Load Shorts videos via NewPipe */
-    fun loadShorts() {
-        if (_shortsVideos.value.isNotEmpty()) return // Already loaded
+    fun loadShorts(forceRefresh: Boolean = false) {
+        val now = System.currentTimeMillis()
+        val refreshWindowMs = 15 * 60 * 1000L
+        if (!forceRefresh && _shortsVideos.value.isNotEmpty() && (now - lastShortsLoadedAt) < refreshWindowMs) {
+            // Rotate ordering for freshness when user revisits tab.
+            _shortsVideos.value = _shortsVideos.value.shuffled()
+            return
+        }
         viewModelScope.launch {
             _shortsLoading.value = true
             try {
-                val shorts = newPipeRepo.getShorts(regionCode = regionCode)
-                _shortsVideos.value = shorts
-                Log.d("HomeVM", "Loaded ${shorts.size} shorts")
+                val personalized = mutableListOf<VideoItem>()
+
+                // 1) Preference channels from subscriptions + watch history
+                val preferredChannels = linkedSetOf<String>()
+                preferredChannels.addAll(_subscribedChannelIds.value.take(8))
+                _watchHistory.value.mapNotNull { it.channelId }
+                    .filter { it.isNotBlank() }
+                    .take(12)
+                    .forEach { preferredChannels.add(it) }
+
+                val channelJobs = preferredChannels.take(8).map { chId ->
+                    async(Dispatchers.IO) {
+                        try {
+                            val url = if (chId.startsWith("UC")) {
+                                "https://www.youtube.com/channel/$chId"
+                            } else {
+                                "https://www.youtube.com/@$chId"
+                            }
+                            newPipeRepo.getChannelVideos(url, maxResults = 15)
+                                .filter { it.looksLikeShort() }
+                        } catch (_: Exception) {
+                            emptyList()
+                        }
+                    }
+                }
+                personalized += channelJobs.awaitAll().flatten()
+
+                // 2) Preference topics from search history
+                val topicJobs = _searchHistory.value.take(6).map { query ->
+                    async(Dispatchers.IO) {
+                        try {
+                            newPipeRepo.searchVideos("$query shorts").videos
+                                .filter { it.looksLikeShort() }
+                                .take(10)
+                        } catch (_: Exception) {
+                            emptyList()
+                        }
+                    }
+                }
+                personalized += topicJobs.awaitAll().flatten()
+
+                val dedupPersonalized = personalized
+                    .filter { it.id.isNotBlank() }
+                    .distinctBy { it.id }
+
+                // 3) Fallback pool only if personalized list is too small
+                val fallback = if (dedupPersonalized.size < 30) {
+                    newPipeRepo.getShorts(regionCode = regionCode)
+                } else {
+                    emptyList()
+                }
+
+                val finalShorts = buildList {
+                    addAll(dedupPersonalized.shuffled())
+                    addAll(fallback.shuffled())
+                }
+                    .distinctBy { it.id }
+                    .take(70)
+
+                _shortsVideos.value = if (finalShorts.isNotEmpty()) finalShorts else fallback
+                lastShortsLoadedAt = System.currentTimeMillis()
+                Log.d("HomeVM", "Loaded ${_shortsVideos.value.size} personalized shorts")
             } catch (e: Exception) {
                 Log.e("HomeVM", "loadShorts failed: ${e.message}")
             } finally {
@@ -590,6 +657,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun VideoItem.looksLikeShort(): Boolean {
+        if (isShort) return true
+        if (duration.isBlank()) return false
+        val parts = duration.split(":").mapNotNull { it.toIntOrNull() }
+        val totalSeconds = when (parts.size) {
+            2 -> parts[0] * 60 + parts[1]
+            3 -> parts[0] * 3600 + parts[1] * 60 + parts[2]
+            else -> Int.MAX_VALUE
+        }
+        return totalSeconds in 1..70
+    }
+
     /**
      * Load trending videos. When categoryId is null ("All" tab),
      * mix videos from trending + a random category so the feed
@@ -618,10 +697,35 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Pull-to-refresh: reload the current feed */
-    fun refreshFeed() {
-        hasLoadedPersonalizedFeed = false
-        loadSmartFeed()
+    /**
+     * Pull-to-refresh behavior:
+     * - At top of feed: full smart refresh (replaces list).
+     * - While scrolled down: append fresh videos to the end so user sees new content below.
+     */
+    fun refreshFeed(appendToEnd: Boolean = false) {
+        if (!appendToEnd) {
+            hasLoadedPersonalizedFeed = false
+            loadSmartFeed()
+            return
+        }
+
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+            try {
+                val fresh = newPipeRepo.getTrendingVideos(regionCode = regionCode).videos
+                val existing = _videos.value
+                val seen = existing.map { it.id }.toMutableSet()
+                val appended = fresh.filter { it.id.isNotBlank() && seen.add(it.id) }
+                _videos.value = existing + appended
+                Log.d("HomeVM", "refreshFeed append mode: +${appended.size} videos")
+            } catch (e: Exception) {
+                _error.value = "Refresh failed: ${e.message}"
+                Log.e("HomeVM", "refreshFeed append failed: ${e.message}")
+            } finally {
+                _isLoading.value = false
+            }
+        }
     }
 
     fun searchVideos(query: String) {

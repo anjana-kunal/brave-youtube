@@ -27,6 +27,7 @@ class YouTubeRepository(
 ) {
     private val api = RetrofitClient.apiService
     private val apiKey = BuildConfig.YOUTUBE_API_KEY
+    private val channelAvatarCache = mutableMapOf<String, String>()
 
     /** Search YouTube and filter out ad/promoted content */
     suspend fun searchVideos(query: String, pageToken: String? = null): SearchResult =
@@ -42,7 +43,7 @@ class YouTubeRepository(
                     .map { it.toVideoItem() }
                     .filter { !adBlockEngine.isPromotedContent(it) }
 
-                SearchResult(videos, response.nextPageToken)
+                SearchResult(enrichChannelAvatars(videos), response.nextPageToken)
             } catch (e: Exception) {
                 SearchResult(emptyList())
             }
@@ -62,7 +63,7 @@ class YouTubeRepository(
                     .map { it.toVideoItem() }
                     .filter { !adBlockEngine.isPromotedContent(it) }
 
-                SearchResult(videos, response.nextPageToken)
+                SearchResult(enrichChannelAvatars(videos), response.nextPageToken)
             } catch (e: Exception) {
                 SearchResult(emptyList())
             }
@@ -244,7 +245,7 @@ class YouTubeRepository(
                     .distinctBy { it.id }
                     .shuffled()
 
-                SearchResult(filtered)
+                SearchResult(enrichChannelAvatars(filtered))
             } catch (e: Exception) {
                 Log.e("YTRepo", "getSubscriptionFeed failed: ${e.message}")
                 SearchResult(emptyList())
@@ -262,11 +263,38 @@ class YouTubeRepository(
                 response.items
                     .map { it.toVideoItem() }
                     .filter { !adBlockEngine.isPromotedContent(it) }
+                    .let { enrichChannelAvatars(it) }
             } catch (e: Exception) {
                 Log.e("YTRepo", "getMyLikedVideos failed: ${e.message}")
                 emptyList()
             }
         }
+
+    private suspend fun enrichChannelAvatars(videos: List<VideoItem>): List<VideoItem> =
+        supervisorScope {
+            videos.map { video ->
+                async {
+                    if (video.channelAvatarUrl.isNotBlank() || video.channelId.isBlank()) return@async video
+                    val avatar = resolveChannelAvatar(video.channelId)
+                    if (avatar.isBlank()) video else video.copy(channelAvatarUrl = avatar)
+                }
+            }.awaitAll()
+        }
+
+    private suspend fun resolveChannelAvatar(channelId: String): String {
+        channelAvatarCache[channelId]?.let { return it }
+        return try {
+            val channel = api.getChannelDetails(channelId = channelId, apiKey = apiKey).items.firstOrNull()
+            val avatar = channel?.snippet?.thumbnails?.high?.url
+                ?: channel?.snippet?.thumbnails?.medium?.url
+                ?: channel?.snippet?.thumbnails?.default?.url
+                ?: ""
+            channelAvatarCache[channelId] = avatar
+            avatar
+        } catch (_: Exception) {
+            ""
+        }
+    }
 }
 
 // ── Extension mappers ────────────────────────────────────────────
