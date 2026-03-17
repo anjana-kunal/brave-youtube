@@ -21,6 +21,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -129,6 +130,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private var nextPageToken: String? = null
     private var hasLoadedPersonalizedFeed = false
+    private val channelAvatarCache = mutableMapOf<String, String>()
 
     init {
         loadSmartFeed()  // Start with personalized feed
@@ -463,7 +465,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
                 // If no user data yet, just show trending
                 if (history.isEmpty() && subscribedIds.isEmpty() && searchQueries.isEmpty()) {
-                    _videos.value = trendingVideos
+                    _videos.value = enrichMissingChannelAvatars(trendingVideos)
                     Log.d("HomeVM", "SmartFeed: No user data, showing ${trendingVideos.size} trending")
                     _isLoading.value = false
                     return@launch
@@ -585,7 +587,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     if (!v.id.isNullOrBlank() && seenIds.add(v.id)) finalFeed.add(v)
                 }
 
-                _videos.value = finalFeed
+                _videos.value = enrichMissingChannelAvatars(finalFeed)
                 Log.d("HomeVM", "SmartFeed: ${finalFeed.size} videos (${personalizedVideos.size} channel, ${topicVideos.size} topic, ${trendingVideos.size} trending)")
 
             } catch (e: Exception) {
@@ -594,7 +596,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 // Fallback to plain trending
                 try {
                     val fallback = newPipeRepo.getTrendingVideos(regionCode = regionCode)
-                    _videos.value = fallback.videos
+                    _videos.value = enrichMissingChannelAvatars(fallback.videos)
                 } catch (_: Exception) { }
             } finally {
                 _isLoading.value = false
@@ -683,7 +685,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 // Use NewPipe Extractor — NO API quota, unlimited
                 val result = newPipeRepo.getTrendingVideos(regionCode = regionCode)
                 if (result.videos.isNotEmpty()) {
-                    _videos.value = result.videos
+                    _videos.value = enrichMissingChannelAvatars(result.videos)
                     Log.d("HomeVM", "Trending via NewPipe: ${result.videos.size} videos")
                 } else {
                     _error.value = "No trending videos found"
@@ -699,26 +701,72 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Pull-to-refresh behavior:
-     * - At top of feed: full smart refresh (replaces list).
-     * - While scrolled down: append fresh videos to the end so user sees new content below.
+     * Insert newly fetched videos after the user's current viewport index,
+     * so new items appear near the current reading position.
      */
-    fun refreshFeed(appendToEnd: Boolean = false) {
-        if (!appendToEnd) {
-            hasLoadedPersonalizedFeed = false
-            loadSmartFeed()
-            return
-        }
+    fun refreshFeed(insertAfterIndex: Int = 0) {
 
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
             try {
-                val fresh = newPipeRepo.getTrendingVideos(regionCode = regionCode).videos
+                val freshPool = mutableListOf<VideoItem>()
+                freshPool += newPipeRepo.getTrendingVideos(regionCode = regionCode).videos
+
+                val interestQueries = _searchHistory.value.take(4)
+                val queryJobs = interestQueries.map { q ->
+                    async(Dispatchers.IO) {
+                        try {
+                            newPipeRepo.searchVideos("$q latest").videos.take(8)
+                        } catch (_: Exception) {
+                            emptyList()
+                        }
+                    }
+                }
+                freshPool += queryJobs.awaitAll().flatten()
+
+                val preferredChannels = _watchHistory.value
+                    .mapNotNull { it.channelId }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .take(4)
+                val channelJobs = preferredChannels.map { chId ->
+                    async(Dispatchers.IO) {
+                        try {
+                            val channelUrl = if (chId.startsWith("UC")) {
+                                "https://www.youtube.com/channel/$chId"
+                            } else {
+                                "https://www.youtube.com/@$chId"
+                            }
+                            newPipeRepo.getChannelVideos(channelUrl, maxResults = 8)
+                        } catch (_: Exception) {
+                            emptyList()
+                        }
+                    }
+                }
+                freshPool += channelJobs.awaitAll().flatten()
+
                 val existing = _videos.value
                 val seen = existing.map { it.id }.toMutableSet()
-                val appended = fresh.filter { it.id.isNotBlank() && seen.add(it.id) }
-                _videos.value = existing + appended
-                Log.d("HomeVM", "refreshFeed append mode: +${appended.size} videos")
+                val appended = freshPool
+                    .shuffled()
+                    .filter { it.id.isNotBlank() && seen.add(it.id) }
+                    .take(25)
+
+                if (appended.isNotEmpty()) {
+                    val insertAt = (insertAfterIndex + 1).coerceIn(0, existing.size)
+                    val merged = buildList {
+                        addAll(existing.take(insertAt))
+                        addAll(appended)
+                        addAll(existing.drop(insertAt))
+                    }
+                    _videos.value = enrichMissingChannelAvatars(merged)
+                } else {
+                    // Fallback: do a full refresh instead of appearing stuck.
+                    hasLoadedPersonalizedFeed = false
+                    loadSmartFeed()
+                }
+                Log.d("HomeVM", "refreshFeed inserted +${appended.size} videos after index=$insertAfterIndex")
             } catch (e: Exception) {
                 _error.value = "Refresh failed: ${e.message}"
                 Log.e("HomeVM", "refreshFeed append failed: ${e.message}")
@@ -738,7 +786,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 // Use NewPipe Extractor — NO quota limits
                 val result = newPipeRepo.searchVideos(query)
-                _videos.value = result.videos
+                    _videos.value = enrichMissingChannelAvatars(result.videos)
                 Log.d("HomeVM", "Search via NewPipe: ${result.videos.size} results")
             } catch (e: Exception) {
                 _error.value = "Search failed: ${e.message}"
@@ -765,7 +813,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 _error.value = null
                 try {
                     val result = newPipeRepo.searchVideos("${category.displayName} trending")
-                    _videos.value = result.videos
+                    _videos.value = enrichMissingChannelAvatars(result.videos)
                     Log.d("HomeVM", "Category '${category.displayName}': ${result.videos.size} videos")
                 } catch (e: Exception) {
                     _error.value = "Failed to load ${category.displayName}: ${e.message}"
@@ -809,4 +857,30 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleBlockShorts(enabled: Boolean) = viewModelScope.launch { prefs.setBlockShorts(enabled) }
     fun toggleBgPlayback(enabled: Boolean) = viewModelScope.launch { prefs.setBackgroundPlayback(enabled) }
     fun toggleAutoplay(enabled: Boolean) = viewModelScope.launch { prefs.setAutoplayEnabled(enabled) }
+
+    private suspend fun enrichMissingChannelAvatars(videos: List<VideoItem>): List<VideoItem> =
+        supervisorScope {
+            videos.map { video ->
+                async(Dispatchers.IO) {
+                    if (video.channelAvatarUrl.isNotBlank() || video.channelId.isBlank()) return@async video
+                    val cached = channelAvatarCache[video.channelId]
+                    if (!cached.isNullOrBlank()) return@async video.copy(channelAvatarUrl = cached)
+                    val info = try {
+                        val channelUrl = if (video.channelId.startsWith("UC")) {
+                            "https://www.youtube.com/channel/${video.channelId}"
+                        } else {
+                            "https://www.youtube.com/@${video.channelId}"
+                        }
+                        newPipeRepo.getChannelInfoData(channelUrl)
+                    } catch (_: Exception) {
+                        null
+                    }
+                    val avatar = info?.avatarUrl.orEmpty()
+                    if (avatar.isNotBlank()) {
+                        channelAvatarCache[video.channelId] = avatar
+                        video.copy(channelAvatarUrl = avatar)
+                    } else video
+                }
+            }.awaitAll()
+        }
 }

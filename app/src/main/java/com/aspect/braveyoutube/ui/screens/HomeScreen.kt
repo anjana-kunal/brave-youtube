@@ -159,8 +159,7 @@ fun HomeScreen(
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isLoading,
         onRefresh = {
-            val appendMode = listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
-            viewModel.refreshFeed(appendToEnd = appendMode)
+            viewModel.refreshFeed(insertAfterIndex = listState.firstVisibleItemIndex)
         }
     )
 
