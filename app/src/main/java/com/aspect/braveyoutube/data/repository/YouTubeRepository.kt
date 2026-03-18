@@ -1,7 +1,6 @@
 package com.aspect.braveyoutube.data.repository
 
 import android.util.Log
-import com.aspect.braveyoutube.BuildConfig
 import com.aspect.braveyoutube.adblock.AdBlockEngine
 import com.aspect.braveyoutube.data.api.RetrofitClient
 import com.aspect.braveyoutube.data.api.YouTubePlaylistItem
@@ -26,7 +25,6 @@ class YouTubeRepository(
     private val adBlockEngine: AdBlockEngine = AdBlockEngine()
 ) {
     private val api = RetrofitClient.apiService
-    private val apiKey = BuildConfig.YOUTUBE_API_KEY
     private val channelAvatarCache = mutableMapOf<String, String>()
 
     /** Search YouTube and filter out ad/promoted content */
@@ -35,8 +33,7 @@ class YouTubeRepository(
             try {
                 val response = api.searchVideos(
                     query = query,
-                    pageToken = pageToken,
-                    apiKey = apiKey
+                    pageToken = pageToken
                 )
                 val videos = response.items
                     .filter { it.id.videoId != null }
@@ -56,8 +53,7 @@ class YouTubeRepository(
                 val response = api.getTrendingVideos(
                     categoryId = categoryId,
                     pageToken = pageToken,
-                    regionCode = regionCode,
-                    apiKey = apiKey
+                    regionCode = regionCode
                 )
                 val videos = response.items
                     .map { it.toVideoItem() }
@@ -74,8 +70,7 @@ class YouTubeRepository(
         withContext(Dispatchers.IO) {
             try {
                 val response = api.getVideoDetails(
-                    videoId = videoId,
-                    apiKey = apiKey
+                    videoId = videoId
                 )
                 response.items.firstOrNull()?.toVideoDetail()
             } catch (e: Exception) {
@@ -107,8 +102,7 @@ class YouTubeRepository(
                     try {
                         val searchResult = api.searchVideos(
                             query = keywords,
-                            maxResults = 15,
-                            apiKey = apiKey
+                            maxResults = 15
                         )
                         allVideos += searchResult.items
                             .filter { it.id.videoId != null && it.id.videoId != videoId }
@@ -121,8 +115,7 @@ class YouTubeRepository(
                     try {
                         val channelResult = api.searchChannel(
                             channelId = channelId,
-                            maxResults = 8,
-                            apiKey = apiKey
+                            maxResults = 8
                         )
                         allVideos += channelResult.items
                             .filter { it.id.videoId != null && it.id.videoId != videoId }
@@ -135,8 +128,7 @@ class YouTubeRepository(
                     try {
                         val fallback = api.searchVideos(
                             query = title.take(60),
-                            maxResults = 10,
-                            apiKey = apiKey
+                            maxResults = 10
                         )
                         allVideos += fallback.items
                             .filter { it.id.videoId != null && it.id.videoId != videoId }
@@ -154,7 +146,7 @@ class YouTubeRepository(
                 if (filtered.isNotEmpty()) {
                     try {
                         val ids = filtered.map { it.id }.joinToString(",")
-                        val detailsResponse = api.getVideoDetails(videoId = ids, apiKey = apiKey)
+                        val detailsResponse = api.getVideoDetails(videoId = ids)
                         val detailsMap = detailsResponse.items.associate { it.id to it }
                         filtered.map { video ->
                             val detail = detailsMap[video.id]
@@ -189,8 +181,7 @@ class YouTubeRepository(
                 repeat(3) {
                     val response = api.getMySubscriptions(
                         authHeader = "Bearer $accessToken",
-                        pageToken = pageToken,
-                        apiKey = apiKey
+                        pageToken = pageToken
                     )
                     allSubs += response.items.map { sub ->
                         SubscriptionChannel(
@@ -227,8 +218,7 @@ class YouTubeRepository(
                             try {
                                 val response = api.searchChannel(
                                     channelId = sub.channelId,
-                                    maxResults = 3,
-                                    apiKey = apiKey
+                                    maxResults = 3
                                 )
                                 response.items
                                     .filter { it.id.videoId != null }
@@ -257,8 +247,7 @@ class YouTubeRepository(
         withContext(Dispatchers.IO) {
             try {
                 val response = api.getMyLikedVideos(
-                    authHeader = "Bearer $accessToken",
-                    apiKey = apiKey
+                    authHeader = "Bearer $accessToken"
                 )
                 response.items
                     .map { it.toVideoItem() }
@@ -284,7 +273,7 @@ class YouTubeRepository(
     private suspend fun resolveChannelAvatar(channelId: String): String {
         channelAvatarCache[channelId]?.let { return it }
         return try {
-            val channel = api.getChannelDetails(channelId = channelId, apiKey = apiKey).items.firstOrNull()
+            val channel = api.getChannelDetails(channelId = channelId).items.firstOrNull()
             val avatar = channel?.snippet?.thumbnails?.high?.url
                 ?: channel?.snippet?.thumbnails?.medium?.url
                 ?: channel?.snippet?.thumbnails?.default?.url

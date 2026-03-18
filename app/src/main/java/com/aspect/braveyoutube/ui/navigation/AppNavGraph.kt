@@ -73,6 +73,7 @@ fun AppNavGraph(navController: NavHostController) {
     var isMiniPlayerVisible by remember { mutableStateOf(false) }
     var isMiniPlayerPlaying by remember { mutableStateOf(true) }
     var streamLoadedForVideoId by remember { mutableStateOf("") }
+    var playerReturnRoute by remember { mutableStateOf(Routes.HOME) }
 
     // Release ExoPlayer on destroy
     DisposableEffect(Unit) {
@@ -99,6 +100,7 @@ fun AppNavGraph(navController: NavHostController) {
                             streamLoadedForVideoId = ""
                         }
                         isMiniPlayerVisible = false
+                        playerReturnRoute = Routes.HOME
                         navController.navigate(Routes.player(videoId))
                     },
                     onSearchClick = {
@@ -119,6 +121,7 @@ fun AppNavGraph(navController: NavHostController) {
                             streamLoadedForVideoId = ""
                         }
                         isMiniPlayerVisible = false
+                        playerReturnRoute = Routes.SEARCH
                         navController.navigate(Routes.player(videoId))
                     },
                     onBackClick = {
@@ -142,7 +145,17 @@ fun AppNavGraph(navController: NavHostController) {
                         miniPlayerThumbnail = "https://img.youtube.com/vi/$videoId/hq720.jpg"
                         isMiniPlayerVisible = true
                         isMiniPlayerPlaying = exoPlayer.isPlaying
-                        navController.popBackStack()
+                        val returned = if (playerReturnRoute == Routes.SEARCH) {
+                            navController.popBackStack(Routes.SEARCH, inclusive = false) ||
+                                navController.navigate(Routes.SEARCH).let { true }
+                        } else {
+                            navController.popBackStack()
+                        }
+                        if (!returned) {
+                            navController.navigate(Routes.HOME) {
+                                launchSingleTop = true
+                            }
+                        }
                     },
                     onVideoClick = { newVideoId ->
                         exoPlayer.stop()
@@ -179,6 +192,7 @@ fun AppNavGraph(navController: NavHostController) {
                     homeViewModel = homeViewModel,
                     onBackClick = { navController.popBackStack() },
                     onVideoClick = { videoId ->
+                        playerReturnRoute = Routes.CHANNEL
                          navController.navigate(Routes.player(videoId))
                     }
                 )
@@ -211,6 +225,7 @@ fun AppNavGraph(navController: NavHostController) {
                     },
                     onClick = {
                         isMiniPlayerVisible = false
+                        playerReturnRoute = navBackStackEntry?.destination?.route ?: Routes.HOME
                         navController.navigate(Routes.player(miniPlayerVideoId!!))
                     },
                     onClose = {

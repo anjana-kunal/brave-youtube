@@ -796,6 +796,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateSearchDraft(query: String) {
+        _searchQuery.value = query
+        if (query.isBlank()) {
+            _isSearchMode.value = false
+        }
+    }
+
+    fun setSearchMode(enabled: Boolean) {
+        _isSearchMode.value = enabled
+        if (!enabled) {
+            clearSuggestions()
+        }
+    }
+
     fun loadMore() {
         // NewPipe Extractor handles pagination internally
         // For now, just reload to get fresh content

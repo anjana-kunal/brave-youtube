@@ -19,8 +19,6 @@ android {
             useSupportLibrary = true
         }
 
-        // YouTube Data API key — replace with your own from Google Cloud Console
-        buildConfigField("String", "YOUTUBE_API_KEY", "\"AIzaSyAG9mHRQGZ7gpWhE-REal_0aPLtVBbCpCs\"")
     }
 
     buildTypes {

@@ -17,14 +17,14 @@ interface YouTubeApiService {
         @Query("type") type: String = "video",
         @Query("maxResults") maxResults: Int = 20,
         @Query("pageToken") pageToken: String? = null,
-        @Query("key") apiKey: String
+        @Query("key") apiKey: String? = null
     ): YouTubeSearchResponse
 
     @GET("videos")
     suspend fun getVideoDetails(
         @Query("part") part: String = "snippet,contentDetails,statistics",
         @Query("id") videoId: String,
-        @Query("key") apiKey: String
+        @Query("key") apiKey: String? = null
     ): YouTubeVideosResponse
 
     @GET("videos")
@@ -35,7 +35,7 @@ interface YouTubeApiService {
         @Query("maxResults") maxResults: Int = 25,
         @Query("videoCategoryId") categoryId: String? = null,
         @Query("pageToken") pageToken: String? = null,
-        @Query("key") apiKey: String
+        @Query("key") apiKey: String? = null
     ): YouTubeVideosResponse
 
     @GET("search")
@@ -44,7 +44,7 @@ interface YouTubeApiService {
         @Query("relatedToVideoId") videoId: String,
         @Query("type") type: String = "video",
         @Query("maxResults") maxResults: Int = 15,
-        @Query("key") apiKey: String
+        @Query("key") apiKey: String? = null
     ): YouTubeSearchResponse
 
     // ── Authenticated endpoints (require OAuth access token) ──
@@ -57,7 +57,7 @@ interface YouTubeApiService {
         @Query("mine") mine: Boolean = true,
         @Query("maxResults") maxResults: Int = 50,
         @Query("pageToken") pageToken: String? = null,
-        @Query("key") apiKey: String
+        @Query("key") apiKey: String? = null
     ): YouTubeSubscriptionResponse
 
     /** Get channel details (for upload playlist ID) */
@@ -65,7 +65,7 @@ interface YouTubeApiService {
     suspend fun getChannelDetails(
         @Query("part") part: String = "snippet,contentDetails",
         @Query("id") channelId: String,
-        @Query("key") apiKey: String
+        @Query("key") apiKey: String? = null
     ): YouTubeChannelResponse
 
     /** Get videos from a playlist (channel uploads, liked videos) */
@@ -75,7 +75,7 @@ interface YouTubeApiService {
         @Query("playlistId") playlistId: String,
         @Query("maxResults") maxResults: Int = 10,
         @Query("pageToken") pageToken: String? = null,
-        @Query("key") apiKey: String
+        @Query("key") apiKey: String? = null
     ): YouTubePlaylistItemsResponse
 
     /** Get user's liked videos */
@@ -85,7 +85,7 @@ interface YouTubeApiService {
         @Query("part") part: String = "snippet,contentDetails,statistics",
         @Query("myRating") myRating: String = "like",
         @Query("maxResults") maxResults: Int = 20,
-        @Query("key") apiKey: String
+        @Query("key") apiKey: String? = null
     ): YouTubeVideosResponse
 
     /** Search within a specific channel */
@@ -96,6 +96,6 @@ interface YouTubeApiService {
         @Query("order") order: String = "date",
         @Query("type") type: String = "video",
         @Query("maxResults") maxResults: Int = 5,
-        @Query("key") apiKey: String
+        @Query("key") apiKey: String? = null
     ): YouTubeSearchResponse
 }
